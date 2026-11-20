@@ -48,8 +48,12 @@
                 "id": "links",
                 "value": [
                   {
-                    "title": "🔍 Trace Waterfall for ${__value.raw}",
-                    "url": "/grafana/d/occupify-distributed-tracing/occupify-distributed-tracing?var-trace_id=${__value.raw}"
+                    "title": "🔍 Trace in Live Log Stream",
+                    "url": "/grafana/d/occupify-log-explorer/occupify-unified-log-explorer?var-service=All&var-search=${__value.raw}"
+                  },
+                  {
+                    "title": "🌐 View Waterfall in Distributed Tracing",
+                    "url": "/grafana/d/occupify-distributed-tracing/occupify-distributed-tracing?var-trace_id=${__data.fields.TraceID}&var-corr_id=${__value.raw}"
                   }
                 ]
               }
@@ -65,7 +69,7 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{service=~\"$service\"} |~ \"Corr-\" | regexp `\\[Corr-(?P<Correlation_ID>[a-zA-Z0-9-]+)\\].*?(?:request for \\[(?P<Endpoint>[^\\]]+)\\]: Status (?P<Status>[0-9]+)|Completed request: [A-Z]+ (?P<Endpoint2>[^ ]+) -> Route \\[[^\\]]+\\] with status \\[(?P<Status2>[^\\] -]+)\\])` | label_format Endpoint=\"{{if .Endpoint}}{{.Endpoint}}{{else if .Endpoint2}}{{.Endpoint2}}{{else}}unknown{{end}}\" | label_format Status=\"{{if .Status}}{{.Status}}{{else if .Status2}}{{.Status2}}{{else}}200{{end}}\"",
+          "expr": "{service=~\"$service\"} |~ \"Corr-\" | regexp `\\[Corr-(?P<p1>[0-9a-fA-F]{8})-(?P<p2>[0-9a-fA-F]{4})-(?P<p3>[0-9a-fA-F]{4})-(?P<p4>[0-9a-fA-F]{4})-(?P<p5>[0-9a-fA-F]{12})\\].*?(?:request for \\[(?P<Endpoint>[^\\]]+)\\]: Status (?P<Status>[0-9]+)|Completed request: [A-Z]+ (?P<Endpoint2>[^ ]+) -> Route \\[[^\\]]+\\] with status \\[(?P<Status2>[^\\] -]+)\\])` | label_format TraceID=\"{{.p1}}{{.p2}}{{.p3}}{{.p4}}{{.p5}}\" | label_format Correlation_ID=\"{{.p1}}-{{.p2}}-{{.p3}}-{{.p4}}-{{.p5}}\" | label_format Endpoint=\"{{if .Endpoint}}{{.Endpoint}}{{else if .Endpoint2}}{{.Endpoint2}}{{else}}unknown{{end}}\" | label_format Status=\"{{if .Status}}{{.Status}}{{else if .Status2}}{{.Status2}}{{else}}200{{end}}\"",
           "queryType": "range"
         }
       ],
@@ -84,6 +88,7 @@
             "excludeByName": {
               "Endpoint2": true,
               "Status2": true,
+              "TraceID": true,
               "container": true,
               "detected_level": true,
               "host": true,
@@ -91,6 +96,11 @@
               "job": true,
               "labelTypes": true,
               "labels": true,
+              "p1": true,
+              "p2": true,
+              "p3": true,
+              "p4": true,
+              "p5": true,
               "service_name": true,
               "syslog_identifier": true,
               "tsNs": true
@@ -178,5 +188,5 @@
   "timezone": "browser",
   "title": "Occupify Unified Log Explorer",
   "uid": "occupify-log-explorer",
-  "version": 5
+  "version": 6
 }

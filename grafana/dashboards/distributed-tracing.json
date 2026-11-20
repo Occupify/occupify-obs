@@ -10,13 +10,34 @@
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 10,
+      "title": "Recent Traces (Click any Trace ID below to copy or explore)",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 1 },
+      "id": 11,
+      "title": "Recent Traces Across Services",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "search",
+          "limit": 20
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
       "id": 1,
       "title": "Trace Inspection & Waterfall Timeline",
       "type": "row"
     },
     {
       "datasource": { "type": "tempo", "uid": "tempo" },
-      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 1 },
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 9 },
       "id": 2,
       "title": "Trace Waterfall & Span Hierarchy (Trace ID: $trace_id)",
       "type": "traces",
@@ -30,21 +51,21 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
       "id": 3,
       "title": "Correlated Service Logs for this Trace",
       "type": "row"
     },
     {
       "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 16 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 24 },
       "id": 4,
-      "title": "Loki Logs Matched by Trace ID ($trace_id)",
+      "title": "Correlated Service Logs for this Trace ($corr_id)",
       "type": "logs",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{job=~\"systemd-journal|service-logs\"} |= \"$trace_id\"",
+          "expr": "{service=~\"$service\"} |= \"$corr_id\"",
           "legendFormat": ""
         }
       ],
@@ -56,21 +77,56 @@
       }
     }
   ],
-  "refresh": "10s",
+  "refresh": "5s",
   "schemaVersion": 39,
   "tags": ["occupify", "tracing", "tempo"],
   "templating": {
     "list": [
       {
-        "current": { "text": "4bf92f3577b34da6a3ce929d0e0e4736", "value": "4bf92f3577b34da6a3ce929d0e0e4736" },
+        "allValue": ".*",
+        "current": { "selected": true, "text": "All", "value": "$__all" },
+        "datasource": { "type": "loki", "uid": "loki" },
+        "definition": "label_values(service)",
+        "includeAll": true,
+        "label": "service",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": {
+          "label": "service",
+          "refId": "LokiVariableQueryEditor-VariableQuery",
+          "stream": "",
+          "type": 1
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "text": "4576d330655d47ba8860c5e672791893", "value": "4576d330655d47ba8860c5e672791893" },
         "name": "trace_id",
         "type": "textbox",
-        "label": "Enter Trace ID",
+        "label": "Enter Trace ID (32-hex)",
         "options": [
           {
             "selected": true,
-            "text": "4bf92f3577b34da6a3ce929d0e0e4736",
-            "value": "4bf92f3577b34da6a3ce929d0e0e4736"
+            "text": "4576d330655d47ba8860c5e672791893",
+            "value": "4576d330655d47ba8860c5e672791893"
+          }
+        ]
+      },
+      {
+        "current": { "text": "4576d330-655d-47ba-8860-c5e672791893", "value": "4576d330-655d-47ba-8860-c5e672791893" },
+        "name": "corr_id",
+        "type": "textbox",
+        "label": "Correlation ID (UUID)",
+        "options": [
+          {
+            "selected": true,
+            "text": "4576d330-655d-47ba-8860-c5e672791893",
+            "value": "4576d330-655d-47ba-8860-c5e672791893"
           }
         ]
       }
@@ -81,5 +137,5 @@
   "timezone": "browser",
   "title": "Occupify Distributed Tracing",
   "uid": "occupify-distributed-tracing",
-  "version": 1
+  "version": 3
 }
