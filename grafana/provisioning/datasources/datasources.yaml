@@ -1,0 +1,50 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 15s
+    editable: true
+
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: "Corr-([a-zA-Z0-9-]+)"
+          name: CorrelationTraceID
+          url: "$${__value.raw}"
+        - datasourceUid: tempo
+          matcherRegex: "trace_id=([a-zA-Z0-9]+)"
+          name: TraceID
+          url: "$${__value.raw}"
+    editable: true
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      httpMethod: GET
+      tracesToLogs:
+        datasourceUid: loki
+        filterByTraceID: true
+        filterBySpanID: false
+        query: '{service=~"$${__service_name}"} |= "$${__trace.id}"'
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      search:
+        hide: false
+    editable: true

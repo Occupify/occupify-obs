@@ -1,0 +1,49 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Occupify Identity DB",
+      "Group": "Occupify Production Databases",
+      "Host": "10.0.10.62",
+      "Port": 5432,
+      "MaintenanceDB": "occupify_identity",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    },
+    "2": {
+      "Name": "Occupify Core DB",
+      "Group": "Occupify Production Databases",
+      "Host": "10.0.10.146",
+      "Port": 5432,
+      "MaintenanceDB": "occupify_core",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    },
+    "3": {
+      "Name": "Occupify Payment DB",
+      "Group": "Occupify Production Databases",
+      "Host": "10.0.10.202",
+      "Port": 5432,
+      "MaintenanceDB": "occupify_payment",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    },
+    "4": {
+      "Name": "Occupify Notification DB",
+      "Group": "Occupify Production Databases",
+      "Host": "10.0.10.86",
+      "Port": 5432,
+      "MaintenanceDB": "occupify_noti",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    },
+    "5": {
+      "Name": "Occupify Administration DB",
+      "Group": "Occupify Production Databases",
+      "Host": "10.0.10.103",
+      "Port": 5432,
+      "MaintenanceDB": "occupify_administration",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    }
+  }
+}

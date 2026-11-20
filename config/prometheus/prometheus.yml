@@ -1,0 +1,86 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "node-exporter-web"
+    static_configs:
+      - targets: ["10.0.1.78:9100"]
+        labels:
+          node: "web"
+          environment: "production"
+
+  - job_name: "node-exporter-gateway"
+    static_configs:
+      - targets: ["10.0.10.143:9100"]
+        labels:
+          node: "gateway"
+          environment: "production"
+
+  - job_name: "node-exporter-identity"
+    static_configs:
+      - targets: ["10.0.10.62:9100"]
+        labels:
+          node: "identity"
+          environment: "production"
+
+  - job_name: "node-exporter-core"
+    static_configs:
+      - targets: ["10.0.10.146:9100"]
+        labels:
+          node: "core"
+          environment: "production"
+
+  - job_name: "node-exporter-payment"
+    static_configs:
+      - targets: ["10.0.10.202:9100"]
+        labels:
+          node: "payment"
+          environment: "production"
+
+  - job_name: "node-exporter-noti"
+    static_configs:
+      - targets: ["10.0.10.86:9100"]
+        labels:
+          node: "noti"
+          environment: "production"
+
+  - job_name: "node-exporter-admin"
+    static_configs:
+      - targets: ["10.0.10.103:9100"]
+        labels:
+          node: "admin"
+          environment: "production"
+
+  - job_name: "spring-boot-actuators"
+    metrics_path: "/actuator/prometheus"
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - "10.0.10.143:8080"
+        labels:
+          app: "gateway"
+      - targets:
+          - "10.0.10.62:8080"
+        labels:
+          app: "identity"
+      - targets:
+          - "10.0.10.146:8080"
+        labels:
+          app: "core"
+      - targets:
+          - "10.0.10.202:8080"
+        labels:
+          app: "payment"
+      - targets:
+          - "10.0.10.86:8080"
+        labels:
+          app: "noti"
+      - targets:
+          - "10.0.10.103:8080"
+        labels:
+          app: "admin"

@@ -1,0 +1,41 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://10.0.1.78:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: system_and_containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: service-logs
+          service: __SERVICE_NAME__
+          host: __HOST_IP__
+          __path__: /var/log/containers/*.log
+
+  - job_name: journal
+    journal:
+      max_age: 12h
+      labels:
+        job: systemd-journal
+        service: __SERVICE_NAME__
+        host: __HOST_IP__
+    relabel_configs:
+      - source_labels: ['__journal_container_name']
+        target_label: 'container'
+      - source_labels: ['__journal_syslog_identifier']
+        target_label: 'syslog_identifier'
+    pipeline_stages:
+      # Drop frequent, uninteresting health checks to keep Loki lean and fast
+      - drop:
+          source: message
+          expression: ".*GET /actuator/health.*200.*"
+      - drop:
+          source: message
+          expression: ".*GET /nginx-health.*200.*"
