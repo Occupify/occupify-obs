@@ -21,10 +21,6 @@ datasources:
       derivedFields:
         - datasourceUid: tempo
           matcherRegex: "Corr-([a-zA-Z0-9-]+)"
-          name: CorrelationTraceID
-          url: "$${__value.raw}"
-        - datasourceUid: tempo
-          matcherRegex: "trace_id=([a-zA-Z0-9]+)"
           name: TraceID
           url: "$${__value.raw}"
     editable: true
