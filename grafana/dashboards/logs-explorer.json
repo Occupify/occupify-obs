@@ -42,21 +42,7 @@
             ]
           },
           {
-            "matcher": { "id": "byName", "options": "Trace / Correlation ID" },
-            "properties": [
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "title": "🔍 Trace Waterfall for ${__value.raw}",
-                    "url": "/grafana/d/occupify-distributed-tracing/occupify-distributed-tracing?var-trace_id=${__value.raw}"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": { "id": "byName", "options": "CorrelationTraceID" },
+            "matcher": { "id": "byName", "options": "Correlation / Trace ID" },
             "properties": [
               {
                 "id": "links",
@@ -79,41 +65,50 @@
         {
           "datasource": { "type": "loki", "uid": "loki" },
           "editorMode": "code",
-          "expr": "{service=~\"$service\"} |~ \"Corr-\" | regexp \"\\\\[Corr-(?P<Correlation_ID>[a-zA-Z0-9-]+)\\\\].*?(?:(?:request: [A-Z]+ |request for \\\\[|path: )(?P<Endpoint>[^ \\\\]]+))(?:.*?(?:status \\\\[|Status )(?P<Status>[^\\\\] -]+))?\" | label_format Status=\"{{if .Status}}{{.Status}}{{else}}200{{end}}\"",
+          "expr": "{service=~\"$service\"} |~ \"Corr-\" | regexp `\\[Corr-(?P<Correlation_ID>[a-zA-Z0-9-]+)\\].*?(?:request for \\[(?P<Endpoint>[^\\]]+)\\]: Status (?P<Status>[0-9]+)|Completed request: [A-Z]+ (?P<Endpoint2>[^ ]+) -> Route \\[[^\\]]+\\] with status \\[(?P<Status2>[^\\] -]+)\\])` | label_format Endpoint=\"{{if .Endpoint}}{{.Endpoint}}{{else if .Endpoint2}}{{.Endpoint2}}{{else}}unknown{{end}}\" | label_format Status=\"{{if .Status}}{{.Status}}{{else if .Status2}}{{.Status2}}{{else}}200{{end}}\"",
           "queryType": "range"
         }
       ],
       "transformations": [
         {
-          "id": "labelsToFields",
+          "id": "extractFields",
           "options": {
-            "mode": "columns"
+            "format": "auto",
+            "replace": false,
+            "source": "labels"
           }
         },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
-              "TraceID": true,
+              "Endpoint2": true,
+              "Status2": true,
               "container": true,
               "detected_level": true,
-              "host": false,
+              "host": true,
               "id": true,
               "job": true,
+              "labelTypes": true,
               "labels": true,
               "service_name": true,
               "syslog_identifier": true,
               "tsNs": true
             },
-            "indexByName": {},
+            "indexByName": {
+              "Time": 0,
+              "service": 1,
+              "Endpoint": 2,
+              "Status": 3,
+              "Correlation_ID": 4,
+              "Line": 5
+            },
             "renameByName": {
-              "CorrelationTraceID": "Trace / Correlation ID",
-              "Correlation_ID": "Trace / Correlation ID",
+              "Correlation_ID": "Correlation / Trace ID",
               "Endpoint": "Request Endpoint",
               "Line": "Log Details",
               "Status": "Status Code",
               "Time": "Time",
-              "host": "Host IP",
               "service": "Service"
             }
           }
@@ -183,5 +178,5 @@
   "timezone": "browser",
   "title": "Occupify Unified Log Explorer",
   "uid": "occupify-log-explorer",
-  "version": 4
+  "version": 5
 }
