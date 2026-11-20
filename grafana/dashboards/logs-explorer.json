@@ -9,7 +9,94 @@
   "panels": [
     {
       "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": {
+            "align": "auto",
+            "cellOptions": { "type": "auto" },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 300 },
+              { "color": "orange", "value": 400 },
+              { "color": "red", "value": 500 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Correlation_ID" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "🔍 Trace Waterfall for ${__value.raw}",
+                    "url": "/grafana/d/occupify-distributed-tracing/occupify-distributed-tracing?var-trace_id=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 0 },
+      "id": 10,
+      "title": "Request Audit: Endpoints, Correlation IDs & Status",
+      "type": "table",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "editorMode": "code",
+          "expr": "{service=~\"$service\"} |~ \"Corr-\" | regexp \"\\\\[Corr-(?P<Correlation_ID>[a-zA-Z0-9-]+)\\\\] (?:Completed request: [A-Z]+ (?P<Endpoint>[^ ]+) -> Route \\\\[[^\\\\]]*\\\\] with status \\\\[(?P<Status>[^\\\\]]+)\\\\]|Client error handling request for \\\\[(?P<Endpoint>[^\\\\]]+)\\\\]: Status (?P<Status>[0-9]+)|Routing request: [A-Z]+ (?P<Endpoint>[^ ]+)|.*header for path: (?P<Endpoint>[^ \\\\n]+))\" | label_format Status=\"{{if .Status}}{{.Status}}{{else}}200 OK{{end}}\"",
+          "queryType": "range"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "container": true,
+              "host": false,
+              "id": true,
+              "job": true,
+              "syslog_identifier": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Correlation_ID": "Correlation ID (Click to Trace)",
+              "Endpoint": "Request Endpoint",
+              "Line": "Log Message",
+              "Status": "Status",
+              "Time": "Time",
+              "host": "Host IP",
+              "service": "Service"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 9 },
       "id": 1,
       "title": "Log Ingestion Volume per Service",
       "type": "timeseries",
@@ -22,7 +109,7 @@
     },
     {
       "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 18, "w": 24, "x": 0, "y": 6 },
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 14 },
       "id": 2,
       "title": "Unified Live Service Log Stream",
       "type": "logs",
@@ -70,5 +157,5 @@
   "timezone": "browser",
   "title": "Occupify Unified Log Explorer",
   "uid": "occupify-log-explorer",
-  "version": 1
+  "version": 2
 }
