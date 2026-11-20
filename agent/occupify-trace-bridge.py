@@ -2,14 +2,16 @@
 """
 Occupify Distributed Trace Bridge & Smart Tempo Proxy
 1. Bridges Spring Boot correlation-tagged microservice logs from Loki into Tempo OTLP traces.
-2. Provides a smart HTTP proxy on port 3201 that transparently normalizes UUIDs with hyphens
-   to 32-hex W3C Trace IDs, allowing Grafana to seamlessly trace by BOTH UUID and Hex without error.
+2. Provides a smart HTTP proxy on port 3201 that transparently normalizes UUIDs and Hex IDs:
+   - In /api/traces/<id>: normalizes hyphenated UUIDs to 32-hex W3C Trace IDs.
+   - In /api/search?q=<id>: auto-converts raw UUIDs/Hex in TraceQL into valid TraceQL queries.
 """
 import time
 import re
 import json
 import logging
 import threading
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 import sys
@@ -27,12 +29,15 @@ COMPLETED_REGEX = re.compile(r'Completed request: ([A-Z]+) ([^ ]+) -> Route \[([
 ROUTING_REGEX = re.compile(r'Routing request: ([A-Z]+) ([^ ]+) -> Route \[([^\]]+)\] Target \[([^\]]+)\]')
 ERROR_REGEX = re.compile(r'(?:Client|Server) error handling request for \[([^\]]+)\]: Status ([0-9]+)')
 
+UUID_PATTERN = re.compile(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+HEX32_PATTERN = re.compile(r'^[0-9a-fA-F]{32}$')
+
 processed_correlations = set()
 
 class SmartTempoProxyHandler(BaseHTTPRequestHandler):
     """
     Transparently intercepts Grafana requests to Tempo.
-    If the requested trace ID is a hyphenated UUID, normalizes it to 32-hex before querying Tempo.
+    Normalizes UUIDs with hyphens and raw IDs in Explore TraceQL.
     """
     def log_message(self, format, *args):
         pass  # keep logs clean
@@ -45,6 +50,25 @@ class SmartTempoProxyHandler(BaseHTTPRequestHandler):
             clean_id = raw_id.replace("-", "").lower()
             suffix = ("?" + trace_id.split("?", 1)[1]) if "?" in trace_id else ""
             path = f"{prefix}/api/traces/{clean_id}{suffix}"
+
+        elif "/api/search" in path and "q=" in path:
+            try:
+                u = urlparse(path)
+                params = parse_qs(u.query)
+                q_list = params.get("q", [])
+                if q_list:
+                    raw_q = q_list[0].strip()
+                    if UUID_PATTERN.match(raw_q):
+                        params["q"] = [f'{{ .correlation.id = "{raw_q}" }}']
+                        path = urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(params, doseq=True), u.fragment))
+                    elif HEX32_PATTERN.match(raw_q):
+                        # Convert 32-hex to UUID with hyphens for attribute search
+                        h = raw_q.lower()
+                        uuid_form = f"{h[:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+                        params["q"] = [f'{{ .correlation.id = "{uuid_form}" }}']
+                        path = urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(params, doseq=True), u.fragment))
+            except Exception:
+                pass
 
         backend_url = f"{TEMPO_BACKEND_URL}{path}"
         try:
@@ -263,7 +287,6 @@ def poll_and_bridge():
         logger.debug("Bridge loop exception: %s", exc)
 
 if __name__ == "__main__":
-    # Start smart proxy in background thread
     proxy_thread = threading.Thread(target=start_proxy_server, daemon=True)
     proxy_thread.start()
 
