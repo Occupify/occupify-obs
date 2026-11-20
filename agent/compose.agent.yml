@@ -27,7 +27,8 @@ services:
     volumes:
       - ./promtail.yaml:/etc/promtail/promtail.yaml:ro
       - /var/log:/var/log:ro
-      - /var/lib/containers:/var/lib/containers:ro
+      - /var/log/journal:/var/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
     deploy:
       resources:
         limits:

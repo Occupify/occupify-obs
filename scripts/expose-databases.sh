@@ -41,8 +41,8 @@ with open('\$COMPOSE_FILE', 'w') as f:
 fi
 
 cd /home/ubuntu/gitops/compose/$SVC
-sudo podman compose down || true
-sudo podman compose up -d
+sudo podman compose -f compose.prod.yml down || true
+sudo podman compose -f compose.prod.yml up -d
 EOF
 
   echo "Verifying port 5432 on $SVC ($IP)..."

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Do not use set -e so full test matrix runs to completion
 
 echo "================================================================="
 echo "   Verifying Occupify Observability & pgAdmin Stack              "
@@ -12,12 +12,12 @@ assert_check() {
   local name="$1"
   local cmd="$2"
   echo -n "Checking: $name ... "
-  if eval "$cmd" > /dev/null 2>&1; then
+  if ( eval "$cmd" ) > /dev/null 2>&1; then
     echo "PASS"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "FAIL"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -37,16 +37,16 @@ assert_check "Grafana API Health (Port 3000)" \
   "ssh aws_bastion \"ssh web 'curl -s http://127.0.0.1:3000/api/health | grep -q ok'\""
 
 assert_check "Prometheus API Health (Port 9090)" \
-  "ssh aws_bastion \"ssh web 'curl -s http://127.0.0.1:9090/-/healthy | grep -q \"Prometheus Server is Healthy\"'\""
+  "ssh aws_bastion ssh web curl -s http://127.0.0.1:9090/-/healthy | grep -q 'Prometheus Server is Healthy'"
 
 assert_check "Loki API Ready (Port 3100)" \
-  "ssh aws_bastion \"ssh web 'curl -s http://127.0.0.1:3100/ready | grep -q ready'\""
+  "ssh aws_bastion ssh web curl -s http://127.0.0.1:3100/ready | grep -q ready"
 
 assert_check "Tempo API Status (Port 3200)" \
-  "ssh aws_bastion \"ssh web 'curl -s http://127.0.0.1:3200/status | grep -q \"tempo\"'\""
+  "ssh aws_bastion ssh web curl -s http://127.0.0.1:3200/status | grep -q tempo"
 
 assert_check "pgAdmin Internal Port (Port 5050)" \
-  "ssh aws_bastion \"ssh web 'curl -sI http://127.0.0.1:5050/ | grep -E \"HTTP/.* (200|302)\"'\""
+  "ssh aws_bastion ssh web curl -sI http://127.0.0.1:5050/ | grep -q '302 FOUND'"
 
 # 3. Database Connectivity from Web EC2
 echo ""

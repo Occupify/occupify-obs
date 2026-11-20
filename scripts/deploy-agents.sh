@@ -33,8 +33,8 @@ $PROMTAIL_CONF
 INNER_EOF
 
 cd /opt/occupify-agent
-sudo podman compose down || true
-sudo podman compose up -d
+sudo podman compose -f compose.agent.yml down || true
+sudo podman compose -f compose.agent.yml up -d
 EOF
 
   echo "Verifying Node Exporter on $SVC ($IP:9100)..."
