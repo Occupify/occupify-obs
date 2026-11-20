@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Occupify Distributed Trace Bridge
-Continuously bridges Spring Boot correlation-tagged microservice logs from Loki into Tempo OTLP traces.
-Provides end-to-end trace waterfalls (Gateway -> Downstream Services) with zero overhead on microservice nodes.
+Occupify Distributed Trace Bridge & Smart Tempo Proxy
+1. Bridges Spring Boot correlation-tagged microservice logs from Loki into Tempo OTLP traces.
+2. Provides a smart HTTP proxy on port 3201 that transparently normalizes UUIDs with hyphens
+   to 32-hex W3C Trace IDs, allowing Grafana to seamlessly trace by BOTH UUID and Hex without error.
 """
 import time
 import re
 import json
 import logging
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import requests
 import sys
 
@@ -15,15 +18,73 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("occupify-trace-bridge")
 
 LOKI_URL = "http://localhost:3100"
-TEMPO_URL = "http://localhost:4318/v1/traces"
+TEMPO_INGEST_URL = "http://localhost:4318/v1/traces"
+TEMPO_BACKEND_URL = "http://localhost:3200"
+PROXY_PORT = 3201
 
 CORR_REGEX = re.compile(r'\[Corr-([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\]')
 COMPLETED_REGEX = re.compile(r'Completed request: ([A-Z]+) ([^ ]+) -> Route \[([^\]]+)\] with status \[([^\]]+)\] \(elapsed: ([0-9]+)ms\)')
 ROUTING_REGEX = re.compile(r'Routing request: ([A-Z]+) ([^ ]+) -> Route \[([^\]]+)\] Target \[([^\]]+)\]')
 ERROR_REGEX = re.compile(r'(?:Client|Server) error handling request for \[([^\]]+)\]: Status ([0-9]+)')
 
-# In-memory deduplication set
 processed_correlations = set()
+
+class SmartTempoProxyHandler(BaseHTTPRequestHandler):
+    """
+    Transparently intercepts Grafana requests to Tempo.
+    If the requested trace ID is a hyphenated UUID, normalizes it to 32-hex before querying Tempo.
+    """
+    def log_message(self, format, *args):
+        pass  # keep logs clean
+
+    def do_GET(self):
+        path = self.path
+        if "/api/traces/" in path:
+            prefix, trace_id = path.split("/api/traces/", 1)
+            raw_id = trace_id.split("?")[0]
+            clean_id = raw_id.replace("-", "").lower()
+            suffix = ("?" + trace_id.split("?", 1)[1]) if "?" in trace_id else ""
+            path = f"{prefix}/api/traces/{clean_id}{suffix}"
+
+        backend_url = f"{TEMPO_BACKEND_URL}{path}"
+        try:
+            headers = {k: v for k, v in self.headers.items() if k.lower() != 'host'}
+            r = requests.get(backend_url, headers=headers, timeout=10)
+            self.send_response(r.status_code)
+            for k, v in r.headers.items():
+                if k.lower() not in ['transfer-encoding', 'content-length', 'content-encoding']:
+                    self.send_header(k, v)
+            self.send_header('Content-Length', str(len(r.content)))
+            self.end_headers()
+            self.wfile.write(r.content)
+        except Exception as e:
+            self.send_response(502)
+            self.end_headers()
+            self.wfile.write(f"Bad Gateway: {e}".encode())
+
+    def do_POST(self):
+        backend_url = f"{TEMPO_BACKEND_URL}{self.path}"
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length) if content_length > 0 else b""
+            headers = {k: v for k, v in self.headers.items() if k.lower() != 'host'}
+            r = requests.post(backend_url, data=body, headers=headers, timeout=10)
+            self.send_response(r.status_code)
+            for k, v in r.headers.items():
+                if k.lower() not in ['transfer-encoding', 'content-length', 'content-encoding']:
+                    self.send_header(k, v)
+            self.send_header('Content-Length', str(len(r.content)))
+            self.end_headers()
+            self.wfile.write(r.content)
+        except Exception as e:
+            self.send_response(502)
+            self.end_headers()
+            self.wfile.write(f"Bad Gateway: {e}".encode())
+
+def start_proxy_server():
+    server = HTTPServer(("0.0.0.0", PROXY_PORT), SmartTempoProxyHandler)
+    logger.info("Smart Tempo Proxy listening on 0.0.0.0:%d", PROXY_PORT)
+    server.serve_forever()
 
 def poll_and_bridge():
     global processed_correlations
@@ -31,7 +92,6 @@ def poll_and_bridge():
         processed_correlations.clear()
 
     now_ns = int(time.time() * 1e9)
-    # Poll logs from the last 2 minutes
     start_ns = now_ns - (120 * 1000 * 1000 * 1000)
 
     try:
@@ -48,7 +108,6 @@ def poll_and_bridge():
             return
 
         results = resp.json().get("data", {}).get("result", [])
-        # Group logs by correlation ID
         groups = {}
         for stream in results:
             svc = stream.get("stream", {}).get("service", "unknown")
@@ -83,7 +142,6 @@ def poll_and_bridge():
             if not gateway_entries and not downstream_entries:
                 continue
 
-            # Parse gateway logs
             start_ts = entries[0]["ts_ns"]
             end_ts = entries[-1]["ts_ns"]
 
@@ -151,7 +209,6 @@ def poll_and_bridge():
                 }
             ]
 
-            # Create child spans for downstream services
             downstream_by_service = {}
             for de in downstream_entries:
                 svc = de["service"]
@@ -197,9 +254,8 @@ def poll_and_bridge():
                     }]
                 })
 
-            # Send payload to Tempo
             otlp_payload = {"resourceSpans": resource_spans}
-            r = requests.post(TEMPO_URL, json=otlp_payload, timeout=2)
+            r = requests.post(TEMPO_INGEST_URL, json=otlp_payload, timeout=2)
             if r.status_code == 200:
                 processed_correlations.add(cid)
 
@@ -207,6 +263,10 @@ def poll_and_bridge():
         logger.debug("Bridge loop exception: %s", exc)
 
 if __name__ == "__main__":
+    # Start smart proxy in background thread
+    proxy_thread = threading.Thread(target=start_proxy_server, daemon=True)
+    proxy_thread.start()
+
     if "--once" in sys.argv:
         poll_and_bridge()
         logger.info("Single bridge cycle executed.")

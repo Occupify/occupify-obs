@@ -29,18 +29,9 @@ datasources:
     type: tempo
     uid: tempo
     access: proxy
-    url: http://tempo:3200
+    url: http://10.0.1.78:3201
     jsonData:
       httpMethod: GET
-      tracesToLogs:
-        datasourceUid: loki
-        filterByTraceID: true
-        filterBySpanID: false
-        query: '{service=~"$${__service_name}"} |= "$${__trace.id}"'
-      serviceMap:
-        datasourceUid: prometheus
       nodeGraph:
         enabled: true
-      search:
-        hide: false
     editable: true

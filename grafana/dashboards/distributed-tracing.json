@@ -11,20 +11,106 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "id": 10,
-      "title": "Recent Traces (Click any Trace ID below to copy or explore)",
+      "title": "Recent Traces (Click any Trace ID below to load into waterfall)",
       "type": "row"
     },
     {
-      "datasource": { "type": "tempo", "uid": "tempo" },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "custom": { "align": "auto", "cellOptions": { "type": "auto" } }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status Code" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "mode": "basic", "type": "color-background" }
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Trace ID (Click to View Waterfall)" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "🔍 Inspect Trace Waterfall (${__value.raw})",
+                    "url": "/grafana/d/occupify-distributed-tracing/occupify-distributed-tracing?var-trace_id=${__value.raw}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
       "gridPos": { "h": 7, "w": 24, "x": 0, "y": 1 },
       "id": 11,
-      "title": "Recent Traces Across Services",
+      "title": "Recent Traces Across Services (Click any Trace ID to inspect waterfall)",
       "type": "table",
       "targets": [
         {
-          "datasource": { "type": "tempo", "uid": "tempo" },
-          "queryType": "search",
-          "limit": 20
+          "datasource": { "type": "loki", "uid": "loki" },
+          "editorMode": "code",
+          "expr": "{service=\"gateway\"} |~ \"Corr-\" | regexp `\\[Corr-(?P<c1>[0-9a-fA-F]{8})-(?P<c2>[0-9a-fA-F]{4})-(?P<c3>[0-9a-fA-F]{4})-(?P<c4>[0-9a-fA-F]{4})-(?P<c5>[0-9a-fA-F]{12})\\]` | label_format TraceID=\"{{.c1}}{{.c2}}{{.c3}}{{.c4}}{{.c5}}\" | label_format Correlation_ID=\"{{.c1}}-{{.c2}}-{{.c3}}-{{.c4}}-{{.c5}}\" | regexp `(?:request for \\[(?P<Endpoint1>[^\\]]+)\\]: Status (?P<Status1>[0-9]+)|Completed request: [A-Z]+ (?P<Endpoint2>[^ ]+) -> Route \\[[^\\]]+\\] with status \\[(?P<Status2>[^\\] -]+)\\]|Routing request: [A-Z]+ (?P<Endpoint3>[^ ]+))` | label_format Endpoint=\"{{if .Endpoint1}}{{.Endpoint1}}{{else if .Endpoint2}}{{.Endpoint2}}{{else if .Endpoint3}}{{.Endpoint3}}{{else}}/{{end}}\" | label_format Status=\"{{if .Status1}}{{.Status1}}{{else if .Status2}}{{.Status2}}{{else}}200{{end}}\"",
+          "queryType": "range"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": {
+            "format": "auto",
+            "replace": false,
+            "source": "labels"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Endpoint1": true,
+              "Endpoint2": true,
+              "Endpoint3": true,
+              "Status1": true,
+              "Status2": true,
+              "c1": true,
+              "c2": true,
+              "c3": true,
+              "c4": true,
+              "c5": true,
+              "container": true,
+              "detected_level": true,
+              "host": true,
+              "id": true,
+              "job": true,
+              "labelTypes": true,
+              "labels": true,
+              "service": true,
+              "service_name": true,
+              "syslog_identifier": true,
+              "tsNs": true
+            },
+            "indexByName": {
+              "Correlation_ID": 4,
+              "Endpoint": 1,
+              "Line": 5,
+              "Status": 2,
+              "Time": 0,
+              "TraceID": 3
+            },
+            "renameByName": {
+              "Correlation_ID": "Correlation ID (UUID)",
+              "Endpoint": "Request Endpoint",
+              "Line": "Log Details",
+              "Status": "Status Code",
+              "Time": "Time",
+              "TraceID": "Trace ID (Click to View Waterfall)"
+            }
+          }
         }
       ]
     },
@@ -44,7 +130,7 @@
       "targets": [
         {
           "datasource": { "type": "tempo", "uid": "tempo" },
-          "queryType": "traceql",
+          "queryType": "traceId",
           "query": "$trace_id"
         }
       ]
@@ -60,12 +146,12 @@
       "datasource": { "type": "loki", "uid": "loki" },
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 24 },
       "id": 4,
-      "title": "Correlated Service Logs for this Trace ($corr_id)",
+      "title": "Correlated Service Logs for this Trace ($trace_id)",
       "type": "logs",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{service=~\"$service\"} |= \"$corr_id\"",
+          "expr": "{service=~\"$service\"} |~ \"(?i)$trace_id\"",
           "legendFormat": ""
         }
       ],
@@ -88,7 +174,7 @@
         "datasource": { "type": "loki", "uid": "loki" },
         "definition": "label_values(service)",
         "includeAll": true,
-        "label": "service",
+        "label": "Service",
         "multi": true,
         "name": "service",
         "options": [],
@@ -105,28 +191,15 @@
         "type": "query"
       },
       {
-        "current": { "text": "4576d330655d47ba8860c5e672791893", "value": "4576d330655d47ba8860c5e672791893" },
+        "current": { "text": "0f4361a1-9b94-479e-addb-50dcbcdd63e1", "value": "0f4361a1-9b94-479e-addb-50dcbcdd63e1" },
         "name": "trace_id",
         "type": "textbox",
-        "label": "Enter Trace ID (32-hex)",
+        "label": "Enter Trace ID (UUID or Hex)",
         "options": [
           {
             "selected": true,
-            "text": "4576d330655d47ba8860c5e672791893",
-            "value": "4576d330655d47ba8860c5e672791893"
-          }
-        ]
-      },
-      {
-        "current": { "text": "4576d330-655d-47ba-8860-c5e672791893", "value": "4576d330-655d-47ba-8860-c5e672791893" },
-        "name": "corr_id",
-        "type": "textbox",
-        "label": "Correlation ID (UUID)",
-        "options": [
-          {
-            "selected": true,
-            "text": "4576d330-655d-47ba-8860-c5e672791893",
-            "value": "4576d330-655d-47ba-8860-c5e672791893"
+            "text": "0f4361a1-9b94-479e-addb-50dcbcdd63e1",
+            "value": "0f4361a1-9b94-479e-addb-50dcbcdd63e1"
           }
         ]
       }
@@ -137,5 +210,5 @@
   "timezone": "browser",
   "title": "Occupify Distributed Tracing",
   "uid": "occupify-distributed-tracing",
-  "version": 3
+  "version": 4
 }
